@@ -1203,6 +1203,21 @@ def create_classification_dataloader(path,
                                      rank=-1,
                                      workers=8,
                                      shuffle=True):
+    """用于创建分类任务的数据加载器
+
+    Args:
+        path (_type_): _description_
+        imgsz (int, optional): _description_. Defaults to 224.
+        batch_size (int, optional): _description_. Defaults to 16.
+        augment (bool, optional): _description_. Defaults to True.
+        cache (bool, optional): _description_. Defaults to False.
+        rank (int, optional): _description_. Defaults to -1.
+        workers (int, optional): _description_. Defaults to 8.
+        shuffle (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: 返回一个数据加载器对象
+    """
     # Returns Dataloader object to be used with YOLOv5 Classifier
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = ClassificationDataset(root=path, imgsz=imgsz, augment=augment, cache=cache)

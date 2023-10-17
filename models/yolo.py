@@ -109,28 +109,58 @@ class Segment(Detect):
 class BaseModel(nn.Module):
     # YOLOv5 base model
     def forward(self, x, profile=False, visualize=False):
+        """模型的前向传播
+
+        Args:
+            x (_type_): _输入张量_
+            profile (bool, optional): _description_. Defaults to False.
+            visualize (bool, optional): _description_. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
         return self._forward_once(x, profile, visualize)  # single-scale inference, train
 
     def _forward_once(self, x, profile=False, visualize=False):
+        """执行模型的单次前向传播
+
+        Args:
+            x (_type_): _description_
+            profile (bool, optional): _description_. Defaults to False.
+            visualize (bool, optional): _description_. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
         y, dt = [], []  # outputs
         for m in self.model:
-            if m.f != -1:  # if not from previous layer
+            if m.f != -1:  # if not from previous layer 如果不是来自上一层
+                # 如果 m.f 是整数，表示当前层的输入来自于前一层，它会将 y[m.f] 赋给 x; 
+                # 如果 m.f 是一个列表，表示当前层的输入来自于多个先前层。在这种情况下，它会根据列表 m.f 中的索引值来选择相应的输入，将它们组成一个列表，然后将这个列表赋给 x。
                 x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
-            if profile:
+            if profile: # 如果设置了 profile，它会调用 _profile_one_layer() 来为每一层进行性能分析
                 self._profile_one_layer(m, x, dt)
             x = m(x)  # run
             y.append(x if m.i in self.save else None)  # save output
-            if visualize:
+            if visualize: # 如果设置了 visualize，它会使用 feature_visualization() 可视化特征。
                 feature_visualization(x, m.type, m.i, save_dir=visualize)
         return x
 
     def _profile_one_layer(self, m, x, dt):
-        c = m == self.model[-1]  # is final layer, copy input as inplace fix
-        o = thop.profile(m, inputs=(x.copy() if c else x, ), verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPs
+        """用于对单个层进行性能分析。测量了该层的时间和FLOPs（浮点运算次数）。
+
+        Args:
+            m (_type_): _description_
+            x (_type_): _description_
+            dt (_type_): _description_
+        """
+        c = m == self.model[-1]  # is final layer, copy input as inplace fix 这一行代码判断当前层 m 是否为最后一层。如果是最后一层，c 将为 True，否则为 False。
+        # / 1E9 * 2 用于将FLOPs从十亿（Giga）转换为二十亿（2 Giga）
+        o = thop.profile(m, inputs=(x.copy() if c else x, ), verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPs 这一行代码用于计算当前层的浮点运算次数（FLOPs）；当前层是最后一层 (c 为 True)，则传递输入的副本，否则传递原始输入 x
         t = time_sync()
         for _ in range(10):
             m(x.copy() if c else x)
-        dt.append((time_sync() - t) * 100)
+        dt.append((time_sync() - t) * 100) # 一行计算并记录了当前层的平均运行时间
         if m == self.model[0]:
             LOGGER.info(f"{'time (ms)':>10s} {'GFLOPs':>10s} {'params':>10s}  module")
         LOGGER.info(f'{dt[-1]:10.2f} {o:10.2f} {m.np:10.0f}  {m.type}')
@@ -138,6 +168,11 @@ class BaseModel(nn.Module):
             LOGGER.info(f"{sum(dt):10.2f} {'-':>10s} {'-':>10s}  Total")
 
     def fuse(self):  # fuse model Conv2d() + BatchNorm2d() layers
+        """将模型中的Conv2d()和BatchNorm2d()层融合在一起
+            对模型进行优化，通过融合 Conv2d() 和 BatchNorm2d() 层来减少模型的计算复杂度和内存消耗。
+        Returns:
+            _type_: _description_
+        """
         LOGGER.info('Fusing layers... ')
         for m in self.model.modules():
             if isinstance(m, (Conv, DWConv)) and hasattr(m, 'bn'):
@@ -151,6 +186,14 @@ class BaseModel(nn.Module):
         model_info(self, verbose, img_size)
 
     def _apply(self, fn):
+        """将一个函数应用于不是参数或注册缓冲区的模型张量, 是 _apply() 的重写版本
+
+        Args:
+            fn (function): 这是要应用于模型张量的函数
+
+        Returns:
+            _type_: _description_
+        """
         # Apply to(), cpu(), cuda(), half() to model tensors that are not parameters or registered buffers
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()

@@ -270,9 +270,16 @@ def fuse_conv_and_bn(conv, bn):
 
 
 def model_info(model, verbose=False, imgsz=640):
+    """定义了一个用于打印模型信息的函数 model_info
+
+    Args:
+        model (_type_): _要分析的模型_
+        verbose (bool, optional): _是否打印详细信息_. Defaults to False.
+        imgsz (int, optional): 输入图像的大小. Defaults to 640.
+    """
     # Model information. img_size may be int or list, i.e. img_size=640 or img_size=[640, 320]
-    n_p = sum(x.numel() for x in model.parameters())  # number parameters
-    n_g = sum(x.numel() for x in model.parameters() if x.requires_grad)  # number gradients
+    n_p = sum(x.numel() for x in model.parameters())  # number parameters 模型的参数数量 n_p 
+    n_g = sum(x.numel() for x in model.parameters() if x.requires_grad)  # number gradients 可训练参数数量 n_g
     if verbose:
         print(f"{'layer':>5} {'name':>40} {'gradient':>9} {'parameters':>12} {'shape':>20} {'mu':>10} {'sigma':>10}")
         for i, (name, p) in enumerate(model.named_parameters()):
@@ -280,7 +287,7 @@ def model_info(model, verbose=False, imgsz=640):
             print('%5g %40s %9s %12g %20s %10.3g %10.3g' %
                   (i, name, p.requires_grad, p.numel(), list(p.shape), p.mean(), p.std()))
 
-    try:  # FLOPs
+    try:  # FLOPs 计算模型的 FLOPs（浮点运算次数）
         p = next(model.parameters())
         stride = max(int(model.stride.max()), 32) if hasattr(model, 'stride') else 32  # max stride
         im = torch.empty((1, p.shape[1], stride, stride), device=p.device)  # input image in BCHW format
@@ -405,28 +412,49 @@ class ModelEMA:
     """ Updated Exponential Moving Average (EMA) from https://github.com/rwightman/pytorch-image-models
     Keeps a moving average of everything in the model state_dict (parameters and buffers)
     For EMA details see https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
+    用于维护模型状态字典（包括参数和缓冲区）的指数移动平均值（EMA）。通常用于稳定训练过程并提高模型的泛化性能。
     """
 
     def __init__(self, model, decay=0.9999, tau=2000, updates=0):
+        """使用衰减因子（decay）、斜坡因子（tau）和更新次数（updates）初始化 EMA
+
+        Args:
+            model (_type_): _description_
+            decay (float, optional): _description_. Defaults to 0.9999.
+            tau (int, optional): _description_. Defaults to 2000.
+            updates (int, optional): _description_. Defaults to 0.
+        """
         # Create EMA
-        self.ema = deepcopy(de_parallel(model)).eval()  # FP32 EMA
+        self.ema = deepcopy(de_parallel(model)).eval()  # FP32 EMA 创建原始模型的副本（model）并将其设置为评估模式（eval()）
         self.updates = updates  # number of EMA updates
         self.decay = lambda x: decay * (1 - math.exp(-x / tau))  # decay exponential ramp (to help early epochs)
-        for p in self.ema.parameters():
+        for p in self.ema.parameters(): # 禁用 EMA 模型中所有参数的梯度计算
             p.requires_grad_(False)
 
     def update(self, model):
-        # Update EMA parameters
-        self.updates += 1
-        d = self.decay(self.updates)
+        """基于当前模型状态更新 EMA 参数
 
-        msd = de_parallel(model).state_dict()  # model state_dict
+        Args:
+            model (_type_): _description_
+        """
+        # Update EMA parameters
+        self.updates += 1 # 增加更新次数（self.updates）
+        d = self.decay(self.updates) # 根据更新次数计算衰减因子（d）
+
+        msd = de_parallel(model).state_dict()  # model state_dict 遍历 EMA 模型和原始模型的状态字典（msd）
         for k, v in self.ema.state_dict().items():
-            if v.dtype.is_floating_point:  # true for FP16 and FP32
+            if v.dtype.is_floating_point:  # true for FP16 and FP32 对于浮点参数，应用 EMA 更新公式
                 v *= d
                 v += (1 - d) * msd[k].detach()
         # assert v.dtype == msd[k].dtype == torch.float32, f'{k}: EMA {v.dtype} and model {msd[k].dtype} must be FP32'
 
     def update_attr(self, model, include=(), exclude=('process_group', 'reducer')):
+        """更新 EMA 模型的属性，使其与原始模型的属性匹配
+
+        Args:
+            model (_type_): _description_
+            include (tuple, optional): 指定要包括在更新中的属性列表. Defaults to ().
+            exclude (tuple, optional): 指定要从更新中排除的属性列表. Defaults to ('process_group', 'reducer').
+        """
         # Update EMA attributes
         copy_attr(self.ema, model, include, exclude)

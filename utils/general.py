@@ -256,6 +256,12 @@ def print_args(args: Optional[dict] = None, show_file=True, show_func=False):
 
 
 def init_seeds(seed=0, deterministic=False):
+    """初始化随机种子
+
+    Args:
+        seed (int, optional): 设置随机种子的参数. Defaults to 0.
+        deterministic (bool, optional): deterministic=True 表示希望初始化的随机种子是确定性的。这意味着每次运行程序时，生成的随机数序列都是相同的，从而可以保证实验的可复现性。. Defaults to False.
+    """
     # Initialize random number generator (RNG) seeds https://pytorch.org/docs/stable/notes/randomness.html
     random.seed(seed)
     np.random.seed(seed)
@@ -603,6 +609,17 @@ def url2file(url):
 
 
 def download(url, dir='.', unzip=True, delete=True, curl=False, threads=1, retry=3):
+    """多线程下载和解压文件的函数
+
+    Args:
+        url (_type_): 下载的文件的URL或文件路径
+        dir (str, optional): 载的文件将保存在哪个目录. Defaults to '.'.
+        unzip (bool, optional): 是否在下载完成后解压文件. Defaults to True.
+        delete (bool, optional): 是否在解压后删除原始压缩文件. Defaults to True.
+        curl (bool, optional): 否使用 curl 命令进行下载. Defaults to False.
+        threads (int, optional): 下载和解压所使用的线程数. Defaults to 1.
+        retry (int, optional): 下载失败时的重试次数. Defaults to 3.
+    """
     # Multithreaded file download and unzip function, used in data.yaml for autodownload
     def download_one(url, dir):
         # Download 1 file

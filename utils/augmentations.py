@@ -345,6 +345,14 @@ def classify_albumentations(
 
 
 def classify_transforms(size=224):
+    """在没有安装 Albumentations 库的情况下所使用的数据预处理管道。它采用一个整数参数 size，用于指定图像的尺寸
+    将图像从中心裁剪到指定的尺寸 -> 将图像转换为 PyTorch 张量 -> 对图像进行标准化，使用预先定义的 ImageNet 均值和标准差。
+    Args:
+        size (int, optional): 指定图像的尺寸. Defaults to 224.
+
+    Returns:
+        _type_: _description_
+    """
     # Transforms to apply if albumentations not installed
     assert isinstance(size, int), f'ERROR: classify_transforms size {size} must be integer, not (list, tuple)'
     # T.Compose([T.ToTensor(), T.Resize(size), T.CenterCrop(size), T.Normalize(IMAGENET_MEAN, IMAGENET_STD)])

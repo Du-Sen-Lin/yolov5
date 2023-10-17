@@ -54,7 +54,16 @@ GIT_INFO = check_git_info()
 
 
 def train(opt, device):
-    init_seeds(opt.seed + 1 + RANK, deterministic=True)
+    """训练模型
+
+    Args:
+        opt (_type_): 所有的训练选项
+        device (_type_): 模型的计算设备（GPU或CPU）
+
+    Raises:
+        ModuleNotFoundError: _description_
+    """
+    init_seeds(opt.seed + 1 + RANK, deterministic=True) # 初始化随机种子，deterministic=True 表示希望初始化的随机种子是确定性的。这意味着每次运行程序时，生成的随机数序列都是相同的，从而可以保证实验的可复现性。
     save_dir, data, bs, epochs, nw, imgsz, pretrained = \
         opt.save_dir, Path(opt.data), opt.batch_size, opt.epochs, min(os.cpu_count() - 1, opt.workers), \
         opt.imgsz, str(opt.pretrained).lower() == 'true'
@@ -71,7 +80,7 @@ def train(opt, device):
     # Logger
     logger = GenericLogger(opt=opt, console_logger=LOGGER) if RANK in {-1, 0} else None
 
-    # Download Dataset
+    # Download Dataset 根据指定的数据集路径，下载数据集（如果数据集不存在的话）
     with torch_distributed_zero_first(LOCAL_RANK), WorkingDirectory(ROOT):
         data_dir = data if data.is_dir() else (DATASETS_DIR / data)
         if not data_dir.is_dir():
@@ -85,7 +94,7 @@ def train(opt, device):
             s = f"Dataset download success ✅ ({time.time() - t:.1f}s), saved to {colorstr('bold', data_dir)}\n"
             LOGGER.info(s)
 
-    # Dataloaders
+    # Dataloaders 创建训练和验证数据加载器
     nc = len([x for x in (data_dir / 'train').glob('*') if x.is_dir()])  # number of classes
     trainloader = create_classification_dataloader(path=data_dir / 'train',
                                                    imgsz=imgsz,
@@ -105,7 +114,7 @@ def train(opt, device):
                                                       rank=-1,
                                                       workers=nw)
 
-    # Model
+    # Model 据指定的模型路径或模型名称创建模型，同时根据需要加载预训练权重
     with torch_distributed_zero_first(LOCAL_RANK), WorkingDirectory(ROOT):
         if Path(opt.model).is_file() or opt.model.endswith('.pt'):
             model = attempt_load(opt.model, device='cpu', fuse=False)
@@ -139,27 +148,29 @@ def train(opt, device):
         logger.log_images(file, name='Train Examples')
         logger.log_graph(model, imgsz)  # log model
 
-    # Optimizer
+    # Optimizer 优化器
     optimizer = smart_optimizer(model, opt.optimizer, opt.lr0, momentum=0.9, decay=opt.decay)
 
-    # Scheduler
+    # Scheduler 学习率调度器
     lrf = 0.01  # final lr (fraction of lr0)
-    # lf = lambda x: ((1 + math.cos(x * math.pi / epochs)) / 2) * (1 - lrf) + lrf  # cosine
-    lf = lambda x: (1 - x / epochs) * (1 - lrf) + lrf  # linear
+    # lf = lambda x: ((1 + math.cos(x * math.pi / epochs)) / 2) * (1 - lrf) + lrf  # cosine 使用 CosineAnnealingLR 方案
+    lf = lambda x: (1 - x / epochs) * (1 - lrf) + lrf  # linear 使用线性衰减方案
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     # scheduler = lr_scheduler.OneCycleLR(optimizer, max_lr=lr0, total_steps=epochs, pct_start=0.1,
     #                                    final_div_factor=1 / 25 / lrf)
 
-    # EMA
+    # EMA 指数移动平均 (Exponential Moving Average, EMA)。EMA 是一种平滑技术，它对模型参数进行平均，以减少训练期间的抖动和噪声。从而提高模型的稳定性和泛化性能。
+    # 确保只有在本地或主节点（Rank为0）时才创建 EMA 模型，分布式训练时其他节点不会创建 EMA 模型。
+    # ModelEMA 创建了一个指数移动平均模型，该模型会在训练过程中持续更新
     ema = ModelEMA(model) if RANK in {-1, 0} else None
 
-    # DDP mode
+    # DDP mode 用于在模型上应用分布式数据并行。它可能会在模型中的每个层之间自动选择合适的数据并行策略。
     if cuda and RANK != -1:
         model = smart_DDP(model)
 
-    # Train
+    # Train 模型训练，计算训练和验证的损失和准确率，并更新模型参数
     t0 = time.time()
-    criterion = smartCrossEntropyLoss(label_smoothing=opt.label_smoothing)  # loss function
+    criterion = smartCrossEntropyLoss(label_smoothing=opt.label_smoothing)  # loss function 损失函数
     best_fitness = 0.0
     scaler = amp.GradScaler(enabled=cuda)
     val = test_dir.stem  # 'val' or 'test'
