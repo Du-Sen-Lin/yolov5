@@ -121,6 +121,12 @@ def create_dataloader(path,
         LOGGER.warning('WARNING ⚠️ --rect is incompatible with DataLoader shuffle, setting shuffle=False')
         shuffle = False
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
+        print(f"--------------- path:{path}, imgsz:{imgsz}, batch_size:{batch_size}, augment:{augment}, rect:{rect}, \
+            stride:{stride}, pad:{pad}, image_weights:{image_weights}, prefix:{prefix}")
+        # --------------- path:/root/dataset/public/object_detect/dataset_yolo_hayao/dataset/images/train, imgsz:640, batch_size:16, augment:True, rect:False,             
+        # stride:32, pad:0.0, image_weights:False, prefix:train:
+        # --------------- path:/root/dataset/public/object_detect/dataset_yolo_hayao/dataset/images/val, imgsz:640, batch_size:32, augment:False, rect:True,             
+        # stride:32, pad:0.5, image_weights:False, prefix:val:
         dataset = LoadImagesAndLabels(
             path,
             imgsz,
@@ -134,7 +140,9 @@ def create_dataloader(path,
             pad=pad,
             image_weights=image_weights,
             prefix=prefix)
-
+    print(f"------------------------ dataset, {dataset[0][0].shape}")
+    # ---------------------- train dataset, torch.Size([3, 640, 640])
+    # ---------------------- val dataset, torch.Size([3, 512, 672])
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
@@ -460,7 +468,7 @@ class LoadImagesAndLabels(Dataset):
         self.stride = stride
         self.path = path
         self.albumentations = Albumentations(size=img_size) if augment else None
-
+        print(f"--------------- LoadImagesAndLabels img_size: {img_size}")
         try:
             f = []  # image files
             for p in path if isinstance(path, list) else [path]:

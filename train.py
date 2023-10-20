@@ -214,6 +214,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
     # Process 0
     if RANK in {-1, 0}:
+        print(f"------------------------val_loader val_loader")
         val_loader = create_dataloader(val_path,
                                        imgsz,
                                        batch_size // WORLD_SIZE * 2,
@@ -267,6 +268,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 f"Logging results to {colorstr('bold', save_dir)}\n"
                 f'Starting training for {epochs} epochs...')
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
+        print(f"training --------------------------------------epoch:{epoch}---------------------------------------------------------------")
         callbacks.run('on_train_epoch_start')
         model.train()
 
@@ -349,13 +351,14 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         # Scheduler 更新学习率。
         lr = [x['lr'] for x in optimizer.param_groups]  # for loggers
         scheduler.step()
-
+        print(f"----------------------------------------------------------------------------------------------------")
         if RANK in {-1, 0}:
             # mAP
             callbacks.run('on_train_epoch_end', epoch=epoch)
             ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
             if not noval or final_epoch:  # Calculate mAP
+                print(f"---------------------------- 111")
                 results, maps, _ = validate.run(data_dict,
                                                 batch_size=batch_size // WORLD_SIZE * 2,
                                                 imgsz=imgsz,
@@ -408,7 +411,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             break  # must break all DDP ranks
 
         # end epoch ----------------------------------------------------------------------------------------------------
+        print(f"end epoch ----------------------------------------------------------------------------------------------------")
     # end training -----------------------------------------------------------------------------------------------------
+    print(f"end training -----------------------------------------------------------------------------------------------------")
     if RANK in {-1, 0}:
         LOGGER.info(f'\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.')
         for f in last, best:

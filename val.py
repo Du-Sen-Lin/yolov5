@@ -128,6 +128,7 @@ def run(
 ):
     # Initialize/load model and set device
     training = model is not None
+    print(f"---------------------------- 111 training:{training}")
     if training:  # called by train.py
         device, pt, jit, engine = next(model.parameters()).device, True, False, False  # get model device, PyTorch model
         half &= device.type != 'cpu'  # half precision only supported on CUDA
@@ -172,6 +173,7 @@ def run(
         model.warmup(imgsz=(1 if pt else batch_size, 3, imgsz, imgsz))  # warmup
         pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
         task = task if task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
+        print(f"---------------------------- imgsz: {imgsz}")
         dataloader = create_dataloader(data[task],
                                        imgsz,
                                        batch_size,
