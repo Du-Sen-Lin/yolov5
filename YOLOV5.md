@@ -111,14 +111,8 @@ notebook:
 ```python
 # 00_module_knowledge_points.ipynb
 
-python train.py --data data/hayao.yaml --cfg models/hayao_yolov5s.yaml --weight runs/train/exp2/weights/last.pt --epochs 1 --batch-size 16 --device 0,1
+# python train.py --data data/hayao.yaml --cfg models/hayao_yolov5s.yaml --weight runs/train/exp2/weights/last.pt --epochs 1 --batch-size 16 --device 0,1
 ```
-
-
-
-
-
-
 
 
 
